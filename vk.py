@@ -25,47 +25,41 @@ def get_photos_info(count=5):
     return response.json()
 
 
-def save_the_biggest_size():
+def take_photos_data():
     os.mkdir(FOLDER_NAME)
     data = get_photos_info()
     photos_names = []
     photos_sizes = []
-    result = zip(photos_names, photos_sizes)
     for photo in data['response']['items']:
         sizes = photo['sizes']
         likes = str(photo['likes']['count'])
         date = str(time.strftime("%d_%b_%Y", time.localtime(photo['date'])))
-        max_size = 0
-        for size in sizes:
-            url = size['url']
-            height = size['height']
-            width = size['width']
-            size_type = size['type']
-        if height * width > max_size:
-            max_size = height * width
-            file_url = url
-            file_name = likes + '.' + url.split('.')[3]
-            if file_name not in photos_names:
-                photos_names.append(file_name)
-            else:
-                file_name = likes + '_' + date + '.' + url.split('.')[3]
-                photos_names.append(file_name)
-            photos_sizes.append(size_type)
-            photos = requests.get(file_url)
-            with open(os.path.join(FOLDER_NAME, file_name), 'wb') as f:
-                f.write(photos.content)
-    return result
+        size = sizes[-1]
+        url = size['url']
+        size_type = size['type']
+        file_url = url
+        file_name = likes + '.' + url.split('.')[3]
+        if file_name not in photos_names:
+            photos_names.append(file_name)
+        else:
+            file_name = likes + '_' + date + '.' + url.split('.')[3]
+            photos_names.append(file_name)
+        photos_sizes.append(size_type)
+        photos = requests.get(file_url)
+        with open(os.path.join(FOLDER_NAME, file_name), 'wb') as f:
+            f.write(photos.content)
+    return list(zip(photos_names, photos_sizes))
 
 
-def make_json_file():
+def save_photos_and_create_json():
     json_list = []
-    for lists in save_the_biggest_size():
-        file_name, size_type = lists
+    for tuples in take_photos_data():
+        file_name, size_type = tuples
         photo_data_dict = {'file_name': file_name, 'size': size_type}
         json_list.append(photo_data_dict)
     with open(os.path.join(FOLDER_NAME, 'photos_data.json'), 'w') as f:
         json.dump(json_list, f, indent=2)
-    return 'Файл с данными о фото был успешно создан в формате json.'
+    return 'Файлы загружены на локальный компьютер, данные о фото были записаны в формате json.'
 
 
 def create_folder(folder_name):
@@ -84,14 +78,20 @@ def upload(folder_name, file_path):
         headers={'Authorization': f'OAuth {YA_TOKEN}'},
     )
     url = response.json()['href']
+    operation_id = response.json()['operation_id']
     files = {'file': open(os.path.join(FOLDER_NAME, file_path), 'rb')}
     result = requests.put(url, files=files)
-    return f'Файл {file_path} был успешно загружен на Яндекс-диск.'
+    check_operation = requests.get(
+        f'https://cloud-api.yandex.net/v1/disk/operations/{operation_id}',
+        headers={'Authorization': f'OAuth {YA_TOKEN}'}
+    )
+    if check_operation.status_code == 200:
+        return f'Файл {file_path} был успешно загружен на Яндекс-диск.'
 
 
 if __name__ == '__main__':
     folder = []
-    print(make_json_file())
+    print(save_photos_and_create_json())
     print(create_folder(FOLDER_NAME))
     for item in os.walk(FOLDER_NAME):
         folder.append(item)
