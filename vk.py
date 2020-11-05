@@ -77,16 +77,19 @@ def upload(folder_name, file_path):
         params={'path': folder_name + '/' + file_path},
         headers={'Authorization': f'OAuth {YA_TOKEN}'},
     )
-    url = response.json()['href']
-    operation_id = response.json()['operation_id']
+    json_response = response.json()
+    url = json_response['href']
+    operation_id = json_response['operation_id']
     files = {'file': open(os.path.join(FOLDER_NAME, file_path), 'rb')}
     result = requests.put(url, files=files)
-    check_operation = requests.get(
-        f'https://cloud-api.yandex.net/v1/disk/operations/{operation_id}',
-        headers={'Authorization': f'OAuth {YA_TOKEN}'}
-    )
-    if check_operation.status_code == 200:
-        return f'Файл {file_path} был успешно загружен на Яндекс-диск.'
+    while True:
+        check_operation = requests.get(
+            f'https://cloud-api.yandex.net/v1/disk/operations/{operation_id}',
+            headers={'Authorization': f'OAuth {YA_TOKEN}'}
+        )
+        if check_operation.status_code == 200 and check_operation.json()['status'] != 'in-progress':
+            return f'Файл {file_path} был успешно загружен на Яндекс-диск.'
+        time.sleep(1)
 
 
 if __name__ == '__main__':
